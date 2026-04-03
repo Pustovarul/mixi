@@ -82,12 +82,9 @@ const G=document.getElementById('grid'),
 let state={n:2,hist:[],trials:0,errors:0,active:false,input:{a:false,p:false},timer:null, gameTimer:null, timeLeft:30},
     audCache={}, synth=window.speechSynthesis, selectedVoice=null;
 
-// Setup Grid
 for(let i=0;i<9;i++)G.appendChild(document.createElement('div')).className='cell';
 const cells=G.children;
 
-// Audio Setup
-// --- Advanced Audio System ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const playTone = (f, t, d, v) => {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -108,7 +105,6 @@ const sfx = {
 
 function selectVoice() {
     const voices = synth.getVoices();
-    // Prioritize high-quality/natural voices
     selectedVoice = voices.find(v => v.name.includes("Premium") || v.name.includes("Enhanced")) ||
                     voices.find(v => v.name.includes("Google US English")) || 
                     voices.find(v => v.name.includes("Zira")) ||
@@ -125,15 +121,14 @@ const loadAud=()=>{
         audCache[x] = new SpeechSynthesisUtterance(x);
         audCache[x].voice = selectedVoice;
         audCache[x].lang = 'en-US';
-        audCache[x].rate = 0.95; // Slightly slower for clarity
-        audCache[x].pitch = 1.0; // Natural pitch
+        audCache[x].rate = 0.95;
+        audCache[x].pitch = 1.0;
     });
 };
 
 const rng=m=>{let a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%m};
 const flash=c=>{F.className=c;F.style.opacity=1;setTimeout(()=>F.style.opacity=0,200)};
 
-// --- Leaderboard ---
 function saveScore(n, score) {
     if(score === 0) return;
     let key = `dnb_scores_n${n}`;
@@ -152,14 +147,13 @@ function renderLB() {
     LB_LIST.innerHTML = scores.length 
         ? scores.map((x,i) => {
             let val = parseFloat(x.s);
-            if (val > 100) val = 100; // Cap old high scores
+            if (val > 100) val = 100;
             if (val < 0) val = 0;
             return `<div class="lb-row"><span>#${i+1} ${x.d}</span><span>${val.toFixed(1)}%</span></div>`
         }).join('')
         : '<div class="lb-row" style="justify-content:center;color:#666">- No Records -</div>';
 }
 
-// --- Game Logic ---
 function endGame(){
     state.active = false;
     clearTimeout(state.timer);
@@ -183,7 +177,6 @@ function turn(){
     if(!state.active) return;
     const len = state.hist.length;
     
-    // Check misses
     if(len > state.n){
         const prev = state.hist[len-1-state.n], curr = state.hist[len-1];
         if(!state.input.a && prev.l === curr.l) { state.errors++; sfx.miss(); }
@@ -204,10 +197,8 @@ function turn(){
 
     state.hist.push({p, l});
 
-    // --- SYNCHRONIZATION FIX ---
-    // 1. Trigger Audio IMMEDIATELY
-    synth.cancel(); // Stop any overlapping speech
-    sfx.pop(); // Micro-feedback for turn start
+    synth.cancel();
+    sfx.pop();
     
     if(audCache[l]) synth.speak(audCache[l]);
     else { 
@@ -216,9 +207,8 @@ function turn(){
         synth.speak(u); 
     }
 
-    // 2. Trigger Visual after 100ms (Audio Latency Compensation)
     setTimeout(() => {
-        if(!state.active) return; // Edge case: if game ended during delay
+        if(!state.active) return; 
         cells[p].classList.add('active');
         setTimeout(()=>cells[p].classList.remove('active'), 800);
     }, 100); 
