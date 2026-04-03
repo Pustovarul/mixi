@@ -55,7 +55,7 @@ input[type=number]{background:#333;border:1px solid #555;color:#fff;font-size:1.
 <div id="stats">
     <span style="text-align:left">N: <b id="n-display">2</b></span>
     <span>Time: <b id="time-display">30</b></span>
-    <span style="text-align:right">Score: <b id="score">0</b></span>
+        <span style="text-align:right">Accuracy: <b id="score">100%</b></span>
 </div>
 
 <div id="game"><div id="grid"></div></div>
@@ -79,7 +79,7 @@ const G=document.getElementById('grid'),
       BTNS={a:document.getElementById('btn-a'),p:document.getElementById('btn-p')},
       LETTERS=['A','B','C','H','K','L','M','O','P','T'];
 
-let state={n:2,hist:[],score:0,active:false,input:{a:false,p:false},timer:null, gameTimer:null, timeLeft:30},
+let state={n:2,hist:[],trials:0,errors:0,active:false,input:{a:false,p:false},timer:null, gameTimer:null, timeLeft:30},
     audCache={}, synth=window.speechSynthesis, selectedVoice=null;
 
 // Setup Grid
@@ -150,7 +150,12 @@ function renderLB() {
     LB_N.textContent = n;
     let scores = JSON.parse(localStorage.getItem(`dnb_scores_n${n}`) || '[]');
     LB_LIST.innerHTML = scores.length 
-        ? scores.map((x,i) => `<div class="lb-row"><span>#${i+1} ${x.d}</span><span>${x.s}</span></div>`).join('')
+        ? scores.map((x,i) => {
+            let val = parseFloat(x.s);
+            if (val > 100) val = 100; // Cap old high scores
+            if (val < 0) val = 0;
+            return `<div class="lb-row"><span>#${i+1} ${x.d}</span><span>${val.toFixed(1)}%</span></div>`
+        }).join('')
         : '<div class="lb-row" style="justify-content:center;color:#666">- No Records -</div>';
 }
 
@@ -161,7 +166,8 @@ function endGame(){
     clearInterval(state.gameTimer);
     saveScore(state.n, state.score);
     renderLB();
-    END_SCORE.textContent = state.score;
+    const acc = state.trials > 0 ? Math.max(0, ((state.trials - state.errors) / state.trials) * 100) : 100;
+    END_SCORE.textContent = acc.toFixed(1) + '%';
     FINAL_SCORE_DIV.style.display = 'block';
     OVERLAY.style.display = 'flex';
     document.getElementById('start').textContent = "PLAY AGAIN";
@@ -180,13 +186,16 @@ function turn(){
     // Check misses
     if(len > state.n){
         const prev = state.hist[len-1-state.n], curr = state.hist[len-1];
-        if(!state.input.a && prev.l === curr.l) { state.score -= 50; sfx.miss(); }
-        if(!state.input.p && prev.p === curr.p) { state.score -= 50; sfx.miss(); }
+        if(!state.input.a && prev.l === curr.l) { state.errors++; sfx.miss(); }
+        if(!state.input.p && prev.p === curr.p) { state.errors++; sfx.miss(); }
     }
-    S.textContent = state.score;
+    const acc = state.trials > 0 ? Math.max(0, ((state.trials - state.errors) / state.trials) * 100) : 100;
+    state.score = acc; 
+    S.textContent = acc.toFixed(1) + '%';
     state.input = {a:false, p:false};
     
     const canMatch = len >= state.n;
+    if(canMatch) state.trials += 2;
     BTNS.a.className = canMatch ? 'btn' : 'btn disabled';
     BTNS.p.className = canMatch ? 'btn' : 'btn disabled';
 
@@ -226,15 +235,16 @@ function check(type){
                            : state.hist[idx].p===state.hist[idx-state.n].p;
     
     if(match){ 
-        state.score += 100; 
         sfx.hit();
         btn.classList.add('btn-success');
         setTimeout(()=>btn.classList.remove('btn-success'), 300);
     } else { 
-        state.score -= 50; 
+        state.errors++; 
         sfx.miss(); 
     }
-    S.textContent = state.score;
+    const acc = state.trials > 0 ? Math.max(0, ((state.trials - state.errors) / state.trials) * 100) : 100;
+    state.score = acc;
+    S.textContent = acc.toFixed(1) + '%';
 }
 
 function startGame(){
@@ -253,8 +263,10 @@ function startGame(){
     
     state.active = true;
     state.hist = [];
-    state.score = 0;
-    S.textContent = 0;
+    state.trials = 0;
+    state.errors = 0;
+    state.score = 100;
+    S.textContent = '100.0%';
     
     state.gameTimer = setInterval(updateGameTimer, 1000);
     turn();
