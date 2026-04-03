@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Dual N-Buci </title>
+<title>Dual N-Back Pro V6 (Synced)</title>
 <style>
 :root{--bg:#121212;--fg:#e0e0e0;--p:#2196F3;--s:#4CAF50;--d:#333;--g:#FFD700}
 body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:monospace;height:100dvh;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
@@ -87,9 +87,30 @@ for(let i=0;i<9;i++)G.appendChild(document.createElement('div')).className='cell
 const cells=G.children;
 
 // Audio Setup
+// --- Advanced Audio System ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const playTone = (f, t, d, v) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = t; 
+    o.frequency.setValueAtTime(f, audioCtx.currentTime);
+    g.gain.setValueAtTime(v, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + d);
+};
+
+const sfx = {
+    pop: () => playTone(600, 'sine', 0.1, 0.15),
+    hit: () => playTone(880, 'sine', 0.2, 0.2),
+    miss: () => { playTone(150, 'square', 0.2, 0.1); flash('bad'); }
+};
+
 function selectVoice() {
     const voices = synth.getVoices();
-    selectedVoice = voices.find(v => v.name.includes("Google US English")) || 
+    // Prioritize high-quality/natural voices
+    selectedVoice = voices.find(v => v.name.includes("Premium") || v.name.includes("Enhanced")) ||
+                    voices.find(v => v.name.includes("Google US English")) || 
                     voices.find(v => v.name.includes("Zira")) ||
                     voices.find(v => v.lang === "en-US") || 
                     voices[0];
@@ -104,8 +125,8 @@ const loadAud=()=>{
         audCache[x] = new SpeechSynthesisUtterance(x);
         audCache[x].voice = selectedVoice;
         audCache[x].lang = 'en-US';
-        audCache[x].rate = 1.1;
-        audCache[x].pitch = 1.2;
+        audCache[x].rate = 0.95; // Slightly slower for clarity
+        audCache[x].pitch = 1.0; // Natural pitch
     });
 };
 
@@ -159,8 +180,8 @@ function turn(){
     // Check misses
     if(len > state.n){
         const prev = state.hist[len-1-state.n], curr = state.hist[len-1];
-        if(!state.input.a && prev.l === curr.l) { state.score -= 50; flash('bad'); }
-        if(!state.input.p && prev.p === curr.p) { state.score -= 50; flash('bad'); }
+        if(!state.input.a && prev.l === curr.l) { state.score -= 50; sfx.miss(); }
+        if(!state.input.p && prev.p === curr.p) { state.score -= 50; sfx.miss(); }
     }
     S.textContent = state.score;
     state.input = {a:false, p:false};
@@ -176,10 +197,13 @@ function turn(){
 
     // --- SYNCHRONIZATION FIX ---
     // 1. Trigger Audio IMMEDIATELY
+    synth.cancel(); // Stop any overlapping speech
+    sfx.pop(); // Micro-feedback for turn start
+    
     if(audCache[l]) synth.speak(audCache[l]);
     else { 
         let u=new SpeechSynthesisUtterance(l); 
-        u.voice = selectedVoice; u.rate=1.1; u.pitch=1.2; 
+        u.voice = selectedVoice; u.rate=0.95; u.pitch=1.0; 
         synth.speak(u); 
     }
 
@@ -203,11 +227,12 @@ function check(type){
     
     if(match){ 
         state.score += 100; 
+        sfx.hit();
         btn.classList.add('btn-success');
         setTimeout(()=>btn.classList.remove('btn-success'), 300);
     } else { 
         state.score -= 50; 
-        flash('bad'); 
+        sfx.miss(); 
     }
     S.textContent = state.score;
 }
@@ -253,5 +278,4 @@ renderLB();
 selectVoice();
 </script>
 </body>
-
 </html>
